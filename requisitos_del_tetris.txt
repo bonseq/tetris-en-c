@@ -1,0 +1,14 @@
+EXTENSIONES/LIBRERIAS Y RECURSOS VARIOS USADOS
+EDITOR:
+VSCode
+extensiones:
+c/c++ de microsoft
+C/C++ Compile Run de danielpinto6zz8
+
+librerias
+    <stdio.h>
+   <stdlib.h>
+  <time.h>
+ <sys/time.h>
+<ncurses.h>
+
