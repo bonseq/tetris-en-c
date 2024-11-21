@@ -6,9 +6,16 @@ c/c++ de microsoft
 C/C++ Compile Run de danielpinto6zz8
 
 librerias
-    <stdio.h>
-   <stdlib.h>
-  <time.h>
- <sys/time.h>
-<ncurses.h>
+SDL2 como libreria grafica y la sentencia
+#define SDL_MAIN_HANDLED para que sdl no redefina main
 
+forma de hacer que ande:
+descargar mingw y configurarlo para c
+descargar el archivo que contiene la libreria sdl, descomprimanlo en el disco (C:)(la libreria es el zip que dejo en el github)
+
+con tener MinGW instalado y SDL2 está descomprimido en C:\SDL2
+1-siempre vayan por la arquitectura de 64bits(x86_64-w64-mingw32) ahi adentro esta include que tiene los encabezados y bin que tiene la liberia dinamica
+2-de bin copien el archivo (SDL.dll) en donde tienen el codigo(en esa misma carpeta se crea el ejecutable que se va a llamar tetris_sdl.exe)
+3-para generar dicho ejecutable abran el cmd (win+R) y accedan desde ahi a la carpeta donde estaq el codigo junto con el archivo .dll y codeen:
+"gcc tetris1.c -o tetris_sdl -IC:\SDL2\x86_64-w64-mingw32\include -LC:\SDL2\x86_64-w64-mingw32\lib -lmingw32 -lSDL2main -lSDL2" le dan a enter, vuelven a carpeta
+ y van a ver que se genero el ejecutable 8:::::::::D
