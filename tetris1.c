@@ -1,222 +1,240 @@
+#define SDL_MAIN_HANDLED
+#include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <sys/time.h>
-#include <ncurses.h>
 
-#define ROWS 20 
-#define COLS 15
-#define TRUE 1
-#define FALSE 0
+#define ROWS 20
+#define COLS 10
+#define BLOCK_SIZE 30
+#define SCREEN_WIDTH (COLS * BLOCK_SIZE)
+#define SCREEN_HEIGHT (ROWS * BLOCK_SIZE)
 
-char tabla[ROWS][COLS] ={0};
-int puntos = 0;
-char JUGAR =TRUE;
-suseconds_t timer = 400000;
-int decrecer = 1000; 
- 
-typedef struct 
-{
-    char **array;
-    int width, row, col;
-} FORMA;
-FORMA BACTUAL;
+typedef struct {
+    int x, y;
+} Block;
 
-const FORMA FORMAArray[7]= {
-	{(char *[]){(char []){0,1,1},(char []){1,1,0}, (char []){0,0,0}}, 3},                           //S      
-	{(char *[]){(char []){1,1,0},(char []){0,1,1}, (char []){0,0,0}}, 3},                           //Z     
-	{(char *[]){(char []){0,1,0},(char []){1,1,1}, (char []){0,0,0}}, 3},                           //T     
-	{(char *[]){(char []){0,0,1},(char []){1,1,1}, (char []){0,0,0}}, 3},                           //L   
-	{(char *[]){(char []){1,0,0},(char []){1,1,1}, (char []){0,0,0}}, 3},                           //L2     
-	{(char *[]){(char []){1,1},(char []){1,1}}, 2},                                                 //cuadrado
-	{(char *[]){(char []){0,0,0,0}, (char []){1,1,1,1}, (char []){0,0,0,0}, (char []){0,0,0,0}}, 4} //barrita larga 
-	
+typedef struct {
+    Block blocks[4];
+    int color;
+} Piece;
+
+// Variables globales
+SDL_Window *window = NULL;
+SDL_Renderer *renderer = NULL;
+int table[ROWS][COLS] = {0}; // Tablero de juego
+Piece currentPiece;          // Pieza activa
+int running = 1;             // Estado del juego
+
+SDL_Color colors[] = {
+    {0, 0, 0, 255},       // Negro (vacío)
+    {255, 0, 0, 255},     // Rojo
+    {0, 255, 0, 255},     // Verde
+    {0, 0, 255, 255},     // Azul
+    {255, 255, 0, 255},   // Amarillo
+    {0, 255, 255, 255},   // Cian
+    {255, 0, 255, 255}    // Magenta
 };
 
-FORMA CopFORMA(FORMA forma){
-	FORMA NUEV_FORMA = forma;
-    char **CopFORMA = forma.array;
-    NUEV_FORMA.array = (char**)malloc(NUEV_FORMA.width*sizeof(char*));
-    int i, j;
-    for (i = 0; i < NUEV_FORMA.width; i++)
-    {
-        NUEV_FORMA.array[i] =(char*)malloc(NUEV_FORMA.width*sizeof(char));
-        for(j=0; j<NUEV_FORMA.width; j++){
-            NUEV_FORMA.array[i][j]=CopFORMA[i][j];
+// Piezas predefinidas
+Piece shapes[] = {
+    // Línea horizontal
+    {{{0, 0}, {1, 0}, {2, 0}, {3, 0}}, 1},
+    // Cuadrado
+    {{{0, 0}, {1, 0}, {0, 1}, {1, 1}}, 2},
+    // T
+    {{{0, 0}, {1, 0}, {2, 0}, {1, 1}}, 3},
+    // L
+    {{{0, 0}, {0, 1}, {1, 1}, {2, 1}}, 4},
+    // L invertida
+    {{{2, 0}, {0, 1}, {1, 1}, {2, 1}}, 5},
+    // S
+    {{{1, 0}, {2, 0}, {0, 1}, {1, 1}}, 6},
+    // Z
+    {{{0, 0}, {1, 0}, {1, 1}, {2, 1}}, 7}
+};
+
+// Inicializa SDL2
+int initSDL() {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        printf("No se pudo inicializar SDL: %s\n", SDL_GetError());
+        return 0;
+    }
+    window = SDL_CreateWindow("Tetris", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
+                              SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!window) {
+        printf("No se pudo crear la ventana: %s\n", SDL_GetError());
+        return 0;
+    }
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (!renderer) {
+        printf("No se pudo crear el renderer: %s\n", SDL_GetError());
+        return 0;
+    }
+    return 1;
+}
+
+// Cierra SDL2
+void closeSDL() {
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}
+
+int isValidPosition(Piece piece) {
+    for (int i = 0; i < 4; i++) {
+        int x = piece.blocks[i].x;
+        int y = piece.blocks[i].y;
+
+        // Verificar bordes y ocupación del tablero
+        if (x < 0 || x >= COLS || y >= ROWS || (y >= 0 && table[y][x] != 0)) {
+            return 0; // Posición no válida
         }
-         
     }
-    return NUEV_FORMA;
+    return 1; // Posición válida
 }
-void BorrarForma(FORMA forma){
-    char **array = forma.array;
-    int i;
-    for ( i = 0; i < forma.width; i++){
-        free(forma.array[i]);
+
+// Genera una nueva pieza aleatoria
+void generatePiece() {
+    currentPiece = shapes[rand() % 7];
+    for (int i = 0; i < 4; i++) {
+        currentPiece.blocks[i].y += 0; // Aparece arriba
+        currentPiece.blocks[i].x += COLS / 2 - 1;
     }
-    lib(forma.array);
-}
 
-int ChequeoDePos(FORMA forma){ //chequeo de la posicion del bloque
-	char **array = forma.array;
-	int i, j;
-	for(i = 0; i < forma.width;i++) {
-		for(j = 0; j < forma.width ;j++){
-			if((forma.col+j < 0 || forma.col+j >= COLS || forma.row+i >= ROWS)){ //bordes
-				if(array[i][j]) 
-					return FALSE;
-				
-			}
-			else if(tabla[forma.row+i][forma.col+j] && array[i][j])
-				return FALSE;
-		}
+    // Verificar si la nueva pieza puede colocarse
+    if (!isValidPosition(currentPiece)) {
+        running = 0; // Fin del juego
     }
-    return TRUE;
 }
 
-void NUEVAFORMARAMDOM(){ 
-	FORMA NUEV_FORMA = CopFORMA(FORMAArray[rand()%7]);
+// Dibuja el tablero y las piezas
+void drawGame() {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
 
-    NUEV_FORMA.col = rand()%(COLS-NUEV_FORMA.width+1);
-    NUEV_FORMA.row = 0;
-    BorrarForma(BACTUAL);
-	current = NUEV_FORMA;
-	if(!ChequeoDePos(BACTUAL)){
-		JUGAR = FALSE;
-	}
+    // Dibuja el tablero
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLS; j++) {
+            int colorIndex = table[i][j];
+            SDL_SetRenderDrawColor(renderer, colors[colorIndex].r, colors[colorIndex].g, 
+                                   colors[colorIndex].b, colors[colorIndex].a);
+            SDL_Rect rect = {j * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE};
+            SDL_RenderFillRect(renderer, &rect);
+        }
+    }
+
+    // Dibuja la pieza actual
+    SDL_SetRenderDrawColor(renderer, colors[currentPiece.color].r, 
+                           colors[currentPiece.color].g, 
+                           colors[currentPiece.color].b, 255);
+    for (int i = 0; i < 4; i++) {
+        Block b = currentPiece.blocks[i];
+        SDL_Rect rect = {b.x * BLOCK_SIZE, b.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE};
+        SDL_RenderFillRect(renderer, &rect);
+    }
+
+    SDL_RenderPresent(renderer);
 }
 
-void ROTAR_FORMA(FORMA forma){ 
-	FORMA tem = CopFORMA(forma);
-	int i, j, k, width;
-	width = forma.width;
-	for(i = 0; i < width ; i++){
-		for(j = 0, k = width-1; j < width ; j++, k--){
-				forma.array[i][j] = tem.array[k][i];
-		}
-	}
-	BorrarForma(tem);
+// Maneja eventos de teclado
+void handleInput(SDL_Event *e) {
+    if (e->type == SDL_QUIT) {
+        running = 0;
+    } else if (e->type == SDL_KEYDOWN) {
+        switch (e->key.keysym.sym) {
+            case SDLK_LEFT:
+                for (int i = 0; i < 4; i++) currentPiece.blocks[i].x--;
+                break;
+            case SDLK_RIGHT:
+                for (int i = 0; i < 4; i++) currentPiece.blocks[i].x++;
+                break;
+            case SDLK_DOWN:
+                for (int i = 0; i < 4; i++) currentPiece.blocks[i].y++;
+                break;
+        }
+    }
 }
 
-void EscribirTabla(){
-	int i, j;
-	for(i = 0; i < BACTUAL.width ;i++){
-		for(j = 0; j < BACTUAL.width ; j++){
-			if(BACTUAL.array[i][j])
-				tabla[BACTUAL.row+i][BACTUAL.col+j] = BACTUAL.array[i][j];
-		}
-	}
+
+void fixPiece(Piece piece) {
+    for (int i = 0; i < 4; i++) {
+        int x = piece.blocks[i].x;
+        int y = piece.blocks[i].y;
+
+        if (y >= 0) { // Asegurarse de no escribir fuera del tablero
+            table[y][x] = piece.color;
+        }
+    }
+}
+//cleo q limpiar columna
+void clearFullRows() {
+    for (int y = ROWS - 1; y >= 0; y--) {
+        int isFull = 1;
+        for (int x = 0; x < COLS; x++) {
+            if (table[y][x] == 0) {
+                isFull = 0;
+                break;
+            }
+        }
+
+        if (isFull) {
+            // Mover filas superiores hacia abajo
+            for (int row = y; row > 0; row--) {
+                for (int x = 0; x < COLS; x++) {
+                    table[row][x] = table[row - 1][x];
+                }
+            }
+            // Vaciar la fila superior
+            for (int x = 0; x < COLS; x++) {
+                table[0][x] = 0;
+            }
+            y++; // Revisar nuevamente esta fila
+        }
+    }
 }
 
-void REMOVER_COLM_RESET_PUNTAJE(){
-	int i, j, sum, count=0;
-	for(i=0;i<ROWS;i++){
-		sum = 0;
-		for(j=0;j< COLS;j++) {
-			sum+=tabla[i][j];
-		}
-		if(sum==COLS){
-			count++;
-			int l, k;
-			for(k = i;k >=1;k--)
-				for(l=0;l<COLS;l++)
-					tabla[k][l]=tabla[k-1][l];
-			for(l=0;l<COLS;l++)
-				tabla[k][l]=0;
-			timer-=decrecer--;
-		}
-	}
-	puntos += 100*count;
-}
-void Imprimir_Tabla(){
-	char Buffer[ROWS][COLS] = {0};
-	int i, j;
-	for(i = 0; i < BACTUAL.width ;i++){
-		for(j = 0; j < BACTUAL.width ; j++){
-			if(BACTUAL.array[i][j])
-				Buffer[BACTUAL.row+i][BACTUAL.col+j] = BACTUAL.array[i][j];
-		}
-	}
-	clear();
-	for(i=0; i<COLS-9; i++)
-		printw(" ");
-	printw("ejemplo tetris\n");
-	for(i = 0; i < ROWS ;i++){
-		for(j = 0; j < COLS ; j++){
-			printw("%c ", (tabla[i][j] + Buffer[i][j])? '#': '.');
-		}
-		printw("\n");
-	}
-	printw("\nSCR: %d\n", puntos);
+
+// Actualiza el juego (caída de piezas, colisiones)
+void updateGame() {
+    Piece temp = currentPiece;
+    for (int i = 0; i < 4; i++) {
+        temp.blocks[i].y++;
+    }
+
+    if (isValidPosition(temp)) {
+        // Si la posición es válida, actualizamos la pieza
+        for (int i = 0; i < 4; i++) {
+            currentPiece.blocks[i].y++;
+        }
+    } else {
+        // Si no es válida, fijamos la pieza y generamos una nueva
+        fixPiece(currentPiece);
+        clearFullRows();
+        generatePiece();
+    }
 }
 
-void ManipulAR_BACTUAL(int action){
-	FORMA tem = CopFORMA(BACTUAL);
-	switch(action){
-		case 's':
-			tem.row++;  //mov ABAJO
-			if(ChequeoDePos(tem))
-				current.row++;
-			else {
-				EscribirTabla();
-				REMOVER_COLM_RESET_PUNTAJE();
-                NUEVAFORMARAMDOM();
-			}
-			break;
-		case 'd':
-			tem.col++;  //mov der
-			if(ChequeoDePos(tem)
-				BACTUAL.col++;
-			break;
-		case 'a':
-			tem.col--;  //mov izq
-			if(CheckPosition(temp))
-				BACTUAL.col--;
-			break;
-		case 'w':
-			ROTAR_FORMA(tem); // rotar bloque
-			if(ChequeoDePos(tem))
-				ROTAR_FORMA(BACTUAL);
-			break;
-	}
-	BorrarForma(tem);
-	Imprimir_Tabla();
-}
-
-struct timeval DESPUES, AHORA;
-int para_ACTUALIZAR(){
-	return ((suseconds_t)(AHORA.tv_sec*1000000 + AHORA.tv_usec) -((suseconds_t)DESPUES.tv_sec*1000000 + DESPUES.tv_usec)) > timer;
-}
-
+//estructura principal :P
 int main() {
-    srand(time(0));
-    puntos = 0;
-    int c;
-    initscr();
-	gettimeofday(&DESPUES, NULL);
-	timeout(1);
-	NUEVAFORMARAMDOM();
-    Imprimir_Tabla();
-	while(JUGAR){+
-		if ((c = getch()) != ERR) {
-		  ManipulAR_BACTUAL(c);
-		}
-		gettimeofday(&AHORA, NULL);
-		if (para_ACTUALIZAR()) { 
-			ManipulAR_BACTUAL('s');
-			gettimeofday(&DESPUES, NULL);
-		}
-	}
-	BorrarForma(BACTUAL);
-	endwin();
-	int i, j;
-	for(i = 0; i < ROWS ;i++){
-		for(j = 0; j < COLS ; j++){
-			printf("%c ", tabla[i][j] ? '#': '.');
-		}
-		printf("\n");
-	}
-	printf("\nte acabaron gay!\n");
-	printf("\nScr: %d\n", puntos);
+    if (!initSDL()) {
+        return 1;
+    }
+
+    srand(time(NULL));
+    generatePiece();
+
+    while (running) {
+        SDL_Event e;
+        while (SDL_PollEvent(&e)) {
+            handleInput(&e);
+        }
+
+        updateGame();
+        drawGame();
+        SDL_Delay(500); // Velocidad de caída
+    }
+
+    closeSDL();
     return 0;
 }
