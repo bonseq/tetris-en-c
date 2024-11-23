@@ -22,12 +22,12 @@ typedef struct {
 // Variables globales
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
-int table[ROWS][COLS] = {0}; // Tablero de juego
+int table[ROWS][COLS] = {0}; // Tablero 
 Piece currentPiece;          // Pieza activa
 int running = 1;             // Estado del juego
 
 SDL_Color colors[] = {
-    {0, 0, 0, 255},       // Negro (vacío)
+    {0, 0, 0, 255},       // Negro 
     {255, 0, 0, 255},     // Rojo
     {0, 255, 0, 255},     // Verde
     {0, 0, 255, 255},     // Azul
@@ -36,7 +36,7 @@ SDL_Color colors[] = {
     {255, 0, 255, 255}    // Magenta
 };
 
-// Piezas predefinidas
+// Piezas 
 Piece shapes[] = {
     // Línea horizontal
     {{{0, 0}, {1, 0}, {2, 0}, {3, 0}}, 1},
@@ -54,7 +54,7 @@ Piece shapes[] = {
     {{{0, 0}, {1, 0}, {1, 1}, {2, 1}}, 7}
 };
 
-// Inicializa SDL2
+// Inicializa SDL2 (cahtgpt)
 int initSDL() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("No se pudo inicializar SDL: %s\n", SDL_GetError());
@@ -94,7 +94,26 @@ int isValidPosition(Piece piece) {
     return 1; // Posición válida
 }
 
-// Genera una nueva pieza aleatoria
+void rotatePiece(Piece *piece) {
+    Piece temp = *piece; // Copia temporal para probar la rotación
+    Block pivot = temp.blocks[0]; // Usar primer bloque como pivote
+
+    for (int i = 0; i < 4; i++) {
+        int rel_x = temp.blocks[i].x - pivot.x;
+        int rel_y = temp.blocks[i].y - pivot.y;
+
+        // Rotar 90grad en sentido horario
+        temp.blocks[i].x = pivot.x - rel_y;
+        temp.blocks[i].y = pivot.y + rel_x;
+    }
+
+    // Verificar si la rotación es válida
+    if (isValidPosition(temp)) {
+        *piece = temp; // Si es válida, aplicamos la rotación
+    }
+}
+
+// Generar nueva pieza aleatoria
 void generatePiece() {
     currentPiece = shapes[rand() % 7];
     for (int i = 0; i < 4; i++) {
@@ -102,18 +121,18 @@ void generatePiece() {
         currentPiece.blocks[i].x += COLS / 2 - 1;
     }
 
-    // Verificar si la nueva pieza puede colocarse
+    // verifica si la nueva pieza puede colocarse
     if (!isValidPosition(currentPiece)) {
-        running = 0; // Fin del juego
+        running = 0; // game over 
     }
 }
 
-// Dibuja el tablero y las piezas
+// Dibuja tablero y las piezas
 void drawGame() {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
-    // Dibuja el tablero
+    // Dibuja tablero
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
             int colorIndex = table[i][j];
@@ -124,7 +143,7 @@ void drawGame() {
         }
     }
 
-    // Dibuja la pieza actual
+    // Dibuja pieza actual
     SDL_SetRenderDrawColor(renderer, colors[currentPiece.color].r, 
                            colors[currentPiece.color].g, 
                            colors[currentPiece.color].b, 255);
@@ -137,20 +156,27 @@ void drawGame() {
     SDL_RenderPresent(renderer);
 }
 
-// Maneja eventos de teclado
+// Maneja input teclado
 void handleInput(SDL_Event *e) {
     if (e->type == SDL_QUIT) {
         running = 0;
     } else if (e->type == SDL_KEYDOWN) {
+        Piece temp = currentPiece;
         switch (e->key.keysym.sym) {
             case SDLK_LEFT:
-                for (int i = 0; i < 4; i++) currentPiece.blocks[i].x--;
+                for (int i = 0; i < 4; i++) temp.blocks[i].x--;
+                if (isValidPosition(temp)) currentPiece = temp;
                 break;
             case SDLK_RIGHT:
-                for (int i = 0; i < 4; i++) currentPiece.blocks[i].x++;
+                for (int i = 0; i < 4; i++) temp.blocks[i].x++;
+                if (isValidPosition(temp)) currentPiece = temp;
                 break;
             case SDLK_DOWN:
-                for (int i = 0; i < 4; i++) currentPiece.blocks[i].y++;
+                for (int i = 0; i < 4; i++) temp.blocks[i].y++;
+                if (isValidPosition(temp)) currentPiece = temp;
+                break;
+            case SDLK_UP: // Rotar pieza
+                rotatePiece(&currentPiece);
                 break;
         }
     }
@@ -162,7 +188,7 @@ void fixPiece(Piece piece) {
         int x = piece.blocks[i].x;
         int y = piece.blocks[i].y;
 
-        if (y >= 0) { // Asegurarse de no escribir fuera del tablero
+        if (y >= 0) { // Asegurarse de no estar fuera del tablero fuera del tablero
             table[y][x] = piece.color;
         }
     }
@@ -179,23 +205,23 @@ void clearFullRows() {
         }
 
         if (isFull) {
-            // Mover filas superiores hacia abajo
+            // Mover filas superiores abajo
             for (int row = y; row > 0; row--) {
                 for (int x = 0; x < COLS; x++) {
                     table[row][x] = table[row - 1][x];
                 }
             }
-            // Vaciar la fila superior
+            // Vaciar la fila sup
             for (int x = 0; x < COLS; x++) {
                 table[0][x] = 0;
             }
-            y++; // Revisar nuevamente esta fila
+            y++; 
         }
     }
 }
 
 
-// Actualiza el juego (caída de piezas, colisiones)
+// Actualiza juego (caida de piezas, colisiones)
 void updateGame() {
     Piece temp = currentPiece;
     for (int i = 0; i < 4; i++) {
@@ -203,19 +229,19 @@ void updateGame() {
     }
 
     if (isValidPosition(temp)) {
-        // Si la posición es válida, actualizamos la pieza
+        // Si la posición es valida, actualizar
         for (int i = 0; i < 4; i++) {
             currentPiece.blocks[i].y++;
         }
     } else {
-        // Si no es válida, fijamos la pieza y generamos una nueva
+        // Si no es valida, fijar pieza genero otra
         fixPiece(currentPiece);
         clearFullRows();
         generatePiece();
     }
 }
 
-//estructura principal :P
+//ciclo pricipal
 int main() {
     if (!initSDL()) {
         return 1;
